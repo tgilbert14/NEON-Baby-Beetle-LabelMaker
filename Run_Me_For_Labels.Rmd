@@ -1,0 +1,413 @@
+---
+title: "Beetle Baby Maker- LABEL GENERATOR"
+author: Timothy Gilbert
+updated: 01/06/2022
+output: flexdashboard::flex_dashboard
+runtime: shiny_prerendered
+#------------------------------------------------------------------------------------
+#TO RUN, Click 'Run Document' at top of .Rmd document --> 'Generate Labels' --> 'Create Labels'
+#IF APP SAYS CAN'T FIND FILE, TRY CLICKING ON 'Session'>'Set Working Directory'>'To Source File Location',
+#THEN 'Run Document' AGAIN... Contact tsgilbert@arizona.edu for any help or feedback with application.
+
+#This Rmarkdown document will read uploaded .csv beetle tracking sheet (designed by K.Matthiesen, D14) and create 
+#beetle locality labels needed for carabid pinning. File column names in '2021 Carabid and IB Tracking.csv' 
+#must not be changed [`Vial ID` and`# of individuals`]. Only works for Domain 14 - SRER & JORN as of 10/17/21 
+#and will make a max of 30 localtity labels per trap location and a max of 250 locality labels in total.
+#As of now does not make labels for carabids with unknown trap location (E,S,W)
+#------------------------------------------------------------------------------------
+---
+
+```{r setup, include=FALSE}
+# global env
+## setting working dir() to this source file
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+library(shiny)
+library(readr)
+library(tidyverse)
+library(data.table)
+library(knitr)
+library(kableExtra)
+library(DT)
+library(rmarkdown)
+library(xfun)
+#library(dplyr)
+
+# update, without prompts for permission/clarification
+#update.packages(ask = FALSE)
+
+
+```
+
+```{r data, include=FALSE}
+# site localities data for display before making labels
+data_f<- read_csv('data/neon_site_data.csv')
+
+```
+
+Inputs {.sidebar}
+-------------------------------------------------------------
+
+```{r}
+# user interface inputs
+fileInput("file1", label = "Upload '.csv' Tracking Sheet",accept = '.csv',placeholder = 'Carabid_Tracking.csv')
+
+actionButton("button", "Generate Labels")
+
+```
+
+-------------------------------------------------------------
+
+
+Upload .csv beetle tracking file, then **Generate Labels** FIRST to check for errors in both tabs. Then choose a font *size* and *style* and Click **'Create Labels'**. Labels will automatically open and save to working directory. Font size and style can be unique to each tab.
+
+Note: Spacing for beetle locality labels designed for 4.5 size font and Arial style in current version with default spacing to NEON specifications.
+
+
+-------------------------------------------------------------
+
+
+```{r}
+
+# display output window
+htmlOutput("message")
+```
+
+
+Column {.tabset .tabset-fade}
+-------------------------------------------------------------
+### Beetle Locality Labels
+
+```{r}
+sliderInput("size", label = "Font Size Adjustment:",
+            min = 2, max = 7, value = 4.5, step = 0.5)
+sliderInput("size4", label = "Spacing Adjustment:",
+            min = 10, max = 30, value = 20, step = 1)
+selectInput("font", label = "Font Style Adjustment:",
+            choices = c('Arial','Calibri','Cambria','Franklin Gothic',
+                        'Futura','Garamond','Helvetica','Rockwell',
+                        'Times New Roman','Verdana'))
+actionButton("button2", "Create Locality Labels ", icon("file-export"))
+
+# display output window
+htmlOutput("labels")
+```
+
+### Beetle ID Labels
+```{r}
+# display output window
+sliderInput("size2", label = "Font Size Adjustment:",
+            min = 2, max = 7, value = 4.5, step = 0.5)
+sliderInput("size3", label = "Spacing Adjustment:",
+            min = 10, max = 22, value = 16, step = 1)
+selectInput("font2", label = "Font Style Adjustment:",
+            choices = c('Arial','Calibri','Cambria','Franklin Gothic',
+                        'Futura','Garamond','Helvetica','Rockwell',
+                        'Times New Roman','Verdana'))
+
+actionButton("button3", "Create Identification Labels ", icon("file-export"))
+
+htmlOutput("labels2")
+```
+
+```{r, context="server", echo=FALSE}
+# reactive display based on uploaded file
+data <- reactive({
+  
+    file <- input$file1
+    ext <- tools::file_ext(file$datapath)
+
+    req(file)
+    validate(need(ext == "csv", "Please upload a csv file..."))
+
+    chpe<- read_csv(file$datapath)
+    
+    site_data<- data_f %>% 
+      select(elevation, decimalLatitude, decimalLongitude, sampleID)
+    
+    site_data<- site_data %>% 
+      filter(!is.na(sampleID))
+
+    sites_local<- unique(site_data)
+    
+chpe_f<- chpe %>% 
+  filter(!is.na(`# of individuals`))
+})
+
+output$labels <- renderTable({
+  req(file)
+  
+  chpe_f<- data()
+  chpe_f %>% 
+    select(`Vial ID`,`# of individuals`,Identification,`...9`) %>% 
+    rename(Identifier = `...9`)
+})
+
+output$labels2 <- renderTable({
+  req(file)
+  
+  chpe_f<- data()
+  chpe_f %>% 
+    select(`Vial ID`,`# of individuals`,Identification,`...9`) %>% 
+    rename(Identifier = `...9`)
+})
+
+observeEvent(input$button,{
+  
+  chpe_f<- data()
+  ## when button pushed... save uploaded file as .csv to working directory, then run code
+  ## for making labels...
+  write_csv(chpe_f,paste0('data/Carabid_and_IB_Tracking_',Sys.Date(),'.csv'),col_names = T)
+  
+
+
+  output$labels <- renderTable({
+    
+  withProgress(message = 'Processing Data...', value = 0, {
+  # Increment the progress bar, and update the detail text.
+  incProgress(.25, detail = paste("Processing...25%"))
+    ## reading in beetle tracking sheet...
+    chpe<- read_csv(paste0('data/Carabid_and_IB_Tracking_',Sys.Date(),'.csv'))
+    chpe_f<- chpe %>% 
+      filter(!is.na(`# of individuals`))
+    ## check sheet for site... and dates...
+    f_site<- substr(chpe_f$`Vial ID`[1],1,4)
+    s_data<- data_f %>% 
+      select(elevation, decimalLatitude, decimalLongitude, sampleID)
+    s2_data<- s_data %>% 
+      filter(!is.na(sampleID))
+    site_data<- s2_data %>% 
+      mutate(decimalLongitude = abs(decimalLongitude)) %>% 
+      mutate(sampleID = substr(sampleID,1,10))
+    
+    sites_local<- unique(site_data)
+    
+    i=1
+while (i < length(sites_local$sampleID)+1) {
+  if (substr(sites_local$sampleID[i],10,10) == 'E'){ ##moving coordinate East
+  ##-.000212 to Longitude (Westing)
+  sites_local$decimalLongitude[i]<- (sites_local$decimalLongitude[i]-.000212)
+  }
+  if (substr(sites_local$sampleID[i],10,10) == 'W'){ ##moving coordinate West
+  ##+.000212 to Longitude (Westing)
+  sites_local$decimalLongitude[i]<- (sites_local$decimalLongitude[i]+.000212)
+  }
+  if (substr(sites_local$sampleID[i],10,10) == 'S'){ ##moving coordinate South
+  ##-.000180 to Latitude (Northing))
+  sites_local$decimalLatitude[i]<- (sites_local$decimalLatitude[i]-.000180)
+  }
+  i=i+1
+ ## end of while statement 
+}
+
+## empty Table to fill up w/ data labels
+local_labels <- data.table(BET_label_QC_check=character())
+
+i=1 ## variable to move from each vial to another in loop
+while (i < length(chpe_f$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+  x=1
+  ## looking at each location per sample
+  while (x < (length(sites_local$sampleID))+1) {
+    ## if vial id is equal to specific trap site local (SRER_005.W) will paste info in table
+    if (substr(chpe_f$`Vial ID`[i],1,10) == substr(sites_local$sampleID[x],1,10)){
+      elv<- sites_local$elevation[x]
+      lat<- sites_local$decimalLatitude[x]
+      long<- sites_local$decimalLongitude[x]
+      ## formatting date for label
+      date<- substr(chpe_f$`Vial ID`[i],12,19)
+      date2<- as.Date(date, "%Y%m%d")
+      f_date<- format(date2,"%d%h%Y")
+      
+      ## for Santa Rita Experimental Range
+      if (substr(chpe_f$`Vial ID`[i],1,4) == 'SRER'){
+        local_labels[[i,1]]<- paste0('USA, ARIZONA Pima Co.',
+                                     '\n','Santa Rita Expm Rng. ',
+                                     elv,'m ','\n','N',lat,' · W',long,
+                                     '\n','Pitfall trap. ',f_date,'. AKaram.',
+                                     '\n',substr(chpe_f$`Vial ID`[i],1,19))
+      }
+      ## for Jornada Experimental Range
+      if (substr(chpe_f$`Vial ID`[i],1,4) == 'JORN'){
+        local_labels[[i,1]]<- paste0('USA, NEW MEXICO Dona Ana Co.',
+                                     '\n','Jornada Expm Rng. ',
+                                     elv,'m ','\n','N',lat,' · W',long,
+                                     '\n','Pitfall trap. ',f_date,'. AKaram.',
+                                     '\n',substr(chpe_f$`Vial ID`[i],1,19))
+      }
+    }
+    ## moves on to check another site local (x)
+    x=x+1
+  }
+  i=i+1
+}
+
+## max of 30 labels per vial id
+v=2
+chpe_n<- list()
+# number of rows dependent on `# of individuals` max
+while (v < max(chpe_f$`# of individuals`)+1) {
+  chpe_n[[v]]<- chpe_f %>% 
+    filter(`# of individuals` > (v-1))
+  v=v+1
+}
+
+
+#substr(sites_local$sampleID[x],1,10)
+v=2
+z=1
+while (v < length(chpe_n)+1) {
+  z=1 ## reset z to start vial id flow over
+  while (z < length(chpe_n[[v]]$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+    x=1
+    ## looking at each location per sample
+    while (x < (length(sites_local$sampleID))+1) {
+      ## if vial id is equal to specific site local (SRER_005.W) will paste info in table- checks every local (x)
+      if (substr(chpe_n[[v]]$`Vial ID`[z],1,10) == substr(sites_local$sampleID[x],1,10)){
+        elv<- sites_local$elevation[x]
+        lat<- sites_local$decimalLatitude[x]
+        long2<- sites_local$decimalLongitude[x]
+        long<- abs(long2)
+        ## formatting date for label
+        date<- substr(chpe_n[[v]]$`Vial ID`[z],12,19)
+        date2<- as.Date(date, "%Y%m%d")
+        f_date<- format(date2,"%d%h%Y")
+       
+        if (substr(chpe_n[[v]]$`Vial ID`[z],1,4) == 'SRER'){
+          local_labels[[i,1]]<- paste0('USA, ARIZONA Pima Co.',
+                                       '\n','Santa Rita Expm Rng. ',
+                                       elv,'m ','\n','N',lat,' · W',long,
+                                       '\n','Pitfall trap. ',f_date,'. AKaram.',
+                                       '\n',substr(chpe_n[[v]]$`Vial ID`[z],1,19))
+        }
+        
+        if (substr(chpe_n[[v]]$`Vial ID`[z],1,4) == 'JORN'){
+          local_labels[[i,1]]<- paste0('USA, NEW MEXICO Dona Ana Co.',
+                                       '\n','Jornada Expm Rng. ',
+                                       elv,'m ','\n','N',lat,' · W',long,
+                                       '\n','Pitfall trap. ',f_date,'. AKaram.',
+                                       '\n',substr(chpe_n[[v]]$`Vial ID`[z],1,19))
+        }
+      }
+      ## moves on to check another site local (x)
+      x=x+1
+    }
+    
+    i=i+1
+    z=z+1
+  }
+  v=v+1
+}
+
+  incProgress(1, detail = paste("Done!"))
+  }
+  )
+
+local_labels<- local_labels %>% 
+  arrange(BET_label_QC_check)
+})
+  
+  output$labels2 <- renderTable({
+    ## reading in beetle tracking sheet...
+    chpe<- read_csv(paste0('data/Carabid_and_IB_Tracking_',Sys.Date(),'.csv'))
+    chpe_f<- chpe %>% 
+      filter(!is.na(`# of individuals`))
+    
+    chpe_f<- chpe_f %>% 
+    select(`Vial ID`,`# of individuals`,Identification,`...9`) %>% 
+    rename(Identifier = `...9`)
+
+## empty Table to fill up w/ data labels
+local_labels2 <- data.table(BET_labels=character())
+
+i=1 ## variable to move from each vial to another in loop
+while (i < length(chpe_f$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+  
+  if (substr(chpe_f$`Vial ID`[i],12,13) == '20'){
+    year<- substr(chpe_f$`Vial ID`[i],12,15)
+  }
+  if(substr(chpe_f$`Vial ID`[i],12,13) != '20'){
+    year<- substr(chpe_f$`Vial ID`[i],10,13)
+  }
+  
+  local_labels2[[i,1]]<- paste0('*',chpe_f$Identification[i],'*',' \n ','det. ',chpe_f$Identifier[i],' \n ',year)
+  i=i+1
+  }
+
+## max of 30 labels per vial id
+v=2
+chpe_n<- list()
+# number of rows dependent on `# of individuals` max
+while (v < max(chpe_f$`# of individuals`)+1) {
+  chpe_n[[v]]<- chpe_f %>% 
+    filter(`# of individuals` > (v-1))
+  v=v+1
+}
+
+v=2
+z=1
+while (v < length(chpe_n)+1) {
+  z=1 ## reset z to start vial id flow over
+  while (z < length(chpe_n[[v]]$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+    
+    if (substr(chpe_n[[v]]$`Vial ID`[z],12,13) == '20'){
+      year2<- substr(chpe_n[[v]]$`Vial ID`[z],12,15)
+    }
+    ## plot location not known
+    if (substr(chpe_n[[v]]$`Vial ID`[z],12,13) != '20'){
+      year2<- substr(chpe_n[[v]]$`Vial ID`[z],10,13)
+    }
+        local_labels2[[i,1]]<- paste0('*',chpe_n[[v]]$Identification[z],'*',
+                                      ' \n ','det. ',chpe_n[[v]]$Identifier[z],
+                                      ' \n ',year2)
+        i=i+1
+        z=z+1
+        }
+  v=v+1
+}
+
+local_labels2<- local_labels2 %>% 
+  arrange(BET_labels)
+    })
+})
+
+## code to create locality labels
+observeEvent(input$button2,{
+  print('Creating Beetle Locality Labels, Processing...')
+
+  size<- input$size
+  font<- input$font
+  size4<- input$size4
+  Sys.sleep(.5)
+
+  output$message <- renderText({
+  print('Beetle Locality Labels Created, Opening pdf...')
+  })
+  
+  # rendering labels with uploaded tracking sheet...
+  rmarkdown::render("beetle_baby_maker.Rmd", output_format = "html_document")
+  pagedown::chrome_print("beetle_baby_maker.html", output = "created_labels/BET_Locality_Labels.pdf")
+  system2("open","created_labels/BET_Locality_Labels.pdf", wait = F)
+
+  #system2("open","beetle_baby_maker.html")
+})
+
+## code to create identification labels
+observeEvent(input$button3,{
+  print('Creating Beetle Identifier Labels, Processing...')
+
+  size2<- input$size2
+  font2<- input$font2
+  size3<- input$size3
+  
+  output$message <- renderText({
+  print('Beetle Identifier Labels Created, Opening pdf...')
+  })
+  
+  # rendering labels with uploaded tracking sheet...
+  rmarkdown::render("beetle_identifier_labels.Rmd", output_format = "html_document")
+  pagedown::chrome_print("beetle_identifier_labels.html",output = "created_labels/BET_ID_Labels.pdf")
+  system2("open","created_labels/BET_ID_Labels.pdf")
+
+})
+
+```

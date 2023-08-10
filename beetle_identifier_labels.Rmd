@@ -1,0 +1,151 @@
+---
+title: "Beetle ID Labels"
+#author: "Timothy Gilbert"
+##email: "tsgilbert35@hotmail.com
+#date: "10/17/2021"
+output: html_document
+#runtime: shiny
+#####################################################################################
+---
+```{r setup, include=FALSE, echo=FALSE}
+library(tidyverse)
+library(readr)
+library(data.table)
+library(knitr)
+library(kableExtra)
+library(shiny)
+
+##size and font options
+#size<- 3.5
+#font<- 'Arial'
+
+## reading in beetle tracking sheet...
+chpe<- read_csv(paste0('data/Carabid_and_IB_Tracking_',Sys.Date(),'.csv'))
+
+chpe_f<- chpe %>% 
+  filter(!is.na(`# of individuals`))
+
+
+chpe_f<- chpe_f %>% 
+    select(`Vial ID`,`# of individuals`,Identification,`...9`) %>% 
+    rename(Identifier = `...9`)
+
+## empty Table to fill up w/ data labels
+local_labels2 <- data.table(BET_ID_QC=character())
+
+
+
+i=1 ## variable to move from each vial to another in loop
+while (i < length(chpe_f$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+  
+  if (substr(chpe_f$`Vial ID`[i],12,13) == '20'){
+    year<- substr(chpe_f$`Vial ID`[i],12,15)
+  }
+  if(substr(chpe_f$`Vial ID`[i],12,13) != '20'){
+    year<- substr(chpe_f$`Vial ID`[i],10,13)
+  }
+  
+  local_labels2[[i,1]]<- paste0('*',chpe_f$Identification[i],'*','     \n ','det.         ',chpe_f$Identifier[i],'      \n ',year)
+  i=i+1
+  }
+
+## max of 30 labels per vial id
+v=2
+chpe_n<- list()
+# number of rows dependent on `# of individuals` max
+while (v < max(chpe_f$`# of individuals`)+1) {
+  chpe_n[[v]]<- chpe_f %>% 
+    filter(`# of individuals` > (v-1))
+  v=v+1
+}
+
+v=2
+z=1
+while (v < length(chpe_n)+1) {
+  z=1 ## reset z to start vial id flow over
+  while (z < length(chpe_n[[v]]$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+    ## plot location known (E, S, W)
+    if (substr(chpe_n[[v]]$`Vial ID`[z],12,13) == '20'){
+      year2<- substr(chpe_n[[v]]$`Vial ID`[z],12,15)
+    }
+    ## plot location not known
+    if (substr(chpe_n[[v]]$`Vial ID`[z],12,13) != '20'){
+      year2<- substr(chpe_n[[v]]$`Vial ID`[z],10,13)
+    }
+        local_labels2[[i,1]]<- paste0('*',chpe_n[[v]]$Identification[z],'*',
+                                      '     \n ','det.         ',chpe_n[[v]]$Identifier[z],
+                                      '      \n ',year2)
+        i=i+1
+        z=z+1
+        }
+  v=v+1
+}
+
+local_labels2<- local_labels2 %>% 
+  arrange(BET_ID_QC)
+
+```
+
+
+
+```{r pressure, echo=FALSE}
+
+## makes up to 250 labels
+size3<- paste0(size3,'em')
+
+local_labels2[1:23] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[24:46] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[47:69] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[70:92] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[93:115] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[116:138] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[139:161] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[162:184] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[185:207] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[208:230] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+local_labels2[231:250] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font2, font_size = size2, position = "float_left") %>%
+  column_spec(1, width = size3)
+
+```

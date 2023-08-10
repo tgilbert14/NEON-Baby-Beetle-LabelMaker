@@ -1,0 +1,216 @@
+---
+title: "Beetle Loc Labels"
+#author: "Timothy Gilbert"
+##email: "tsgilbert35@hotmail.com
+#date: "10/17/2021"
+output: html_document
+#runtime: shiny
+#####################################################################################
+---
+```{r setup, include=FALSE, echo=FALSE}
+library(tidyverse)
+library(readr)
+library(data.table)
+library(knitr)
+library(kableExtra)
+library(shiny)
+
+##size and font options
+#size<- 3.5
+#font<- 'Arial'
+
+## reading in beetle tracking sheet...
+chpe<- read_csv(paste0('data/Carabid_and_IB_Tracking_',Sys.Date(),'.csv'))
+chpe_f<- chpe %>% 
+  filter(!is.na(`# of individuals`))
+
+## check sheet for site... and dates...
+f_site<- substr(chpe_f$`Vial ID`[1],1,4)
+
+# FOR PULLING SITE SPECIFIC TRAP LOCATION INFO
+library(neonUtilities)
+dp<- 'DP1.10022.001' ## BET COLLECTION DP
+data<- loadByProduct(dpID = dp, startdate = '2021-01-01', enddate = '2021-10-01', check.size = F, site = f_site)
+data_f<- data$bet_fielddata
+
+## giving each site location it's own locality coordinates
+s_data<- data_f %>% 
+  select(elevation, decimalLatitude, decimalLongitude, sampleID)
+s2_data<- s_data %>% 
+  filter(!is.na(sampleID))
+site_data<- s2_data %>% 
+  mutate(decimalLongitude = abs(decimalLongitude)) %>% 
+  mutate(sampleID = substr(sampleID,1,10))
+
+sites_local<- unique(site_data)
+
+i=1
+while (i < length(sites_local$sampleID)+1) {
+  if (substr(sites_local$sampleID[i],10,10) == 'E'){ ##moving coordinate East
+  ##-212 to Longitude (Westing)
+  sites_local$decimalLongitude[i]<- (sites_local$decimalLongitude[i]-.000212)
+  }
+  if (substr(sites_local$sampleID[i],10,10) == 'W'){ ##moving coordinate West
+  ##+212 to Longitude (Westing)
+  sites_local$decimalLongitude[i]<- (sites_local$decimalLongitude[i]+.000212)
+  }
+  if (substr(sites_local$sampleID[i],10,10) == 'S'){ ##moving coordinate South
+  ##-180 to Latitude (Northing))
+  sites_local$decimalLatitude[i]<- (sites_local$decimalLatitude[i]-.000180)
+  }
+  i=i+1
+ ## end of while statement 
+}
+#View(sites_local)
+
+## empty Table to fill up w/ data labels
+local_labels <- data.table(BET_labels=character())
+
+i=1 ## variable to move from each vial to another in loop
+while (i < length(chpe_f$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+  x=1
+  ## looking at each location per sample
+  while (x < (length(sites_local$sampleID))+1) {
+    ## if vial id is equal to specific site local (SRER_005.W) will paste info in table- checks every local (x)
+    if (substr(chpe_f$`Vial ID`[i],1,10) == substr(sites_local$sampleID[x],1,10)){
+      elv<- sites_local$elevation[x]
+      lat<- sites_local$decimalLatitude[x]
+      long<- sites_local$decimalLongitude[x]
+      ## formatting date for label
+      date<- substr(chpe_f$`Vial ID`[i],12,19)
+      date2<- as.Date(date, "%Y%m%d")
+      f_date<- format(date2,"%d%h%Y")
+      
+      if (substr(chpe_f$`Vial ID`[i],1,4) == 'SRER'){
+        local_labels[[i,1]]<- paste0('USA, ARIZONA Pima Co.    ','\n','Santa Rita Expm Rng. ',elv,'m ','\n','N',lat,' · W',long,
+                                     '     \n','Pitfall trap. ',f_date,'. AKaram.','\n',substr(chpe_f$`Vial ID`[i],1,19))
+      }
+      if (substr(chpe_f$`Vial ID`[i],1,4) == 'JORN'){
+        local_labels[[i,1]]<- paste0('USA, NEW MEXICO Dona Ana Co.    ','\n','Jornada Expm Rng. ',elv,'m ','\n','N',lat,' · W',long,
+                                     '     \n','Pitfall trap. ',f_date,'. AKaram.','\n',substr(chpe_f$`Vial ID`[i],1,19))
+      }
+    }
+    ## moves on to check another site local (x)
+    x=x+1
+  }
+  i=i+1
+}
+
+## max of 30 labels per vial id
+v=2
+chpe_n<- list()
+# number of rows dependent on `# of individuals` max
+while (v < max(chpe_f$`# of individuals`)+1) {
+  chpe_n[[v]]<- chpe_f %>% 
+    filter(`# of individuals` > (v-1))
+  v=v+1
+}
+
+v=2
+z=1
+while (v < length(chpe_n)+1) {
+  z=1 ## reset z to start vial id flow over
+  while (z < length(chpe_n[[v]]$`Vial ID`)+1) { ## goes through every vial ID in excel file 'chpe_f'
+    x=1
+    ## looking at each location per sample
+    while (x < (length(sites_local$sampleID))+1) {
+      ## if vial id is equal to specific site local (SRER_005.W) will paste info in table- checks every local (x)
+      if (substr(chpe_n[[v]]$`Vial ID`[z],1,10) == substr(sites_local$sampleID[x],1,10)){
+        elv<- sites_local$elevation[x]
+        lat<- sites_local$decimalLatitude[x]
+        long2<- sites_local$decimalLongitude[x]
+        long<- abs(long2)
+        ## formatting date for label
+        date<- substr(chpe_n[[v]]$`Vial ID`[z],12,19)
+        date2<- as.Date(date, "%Y%m%d")
+        f_date<- format(date2,"%d%h%Y")
+       
+        if (substr(chpe_n[[v]]$`Vial ID`[z],1,4) == 'SRER'){
+          local_labels[[i,1]]<- paste0('USA, ARIZONA Pima Co.    ','\n','Santa Rita Expm Rng. ',elv,'m ','\n','N',lat,' · W',long,
+                                       '     \n','Pitfall trap. ',f_date,'. AKaram.','\n',substr(chpe_n[[v]]$`Vial ID`[z],1,19))
+        }
+        
+        if (substr(chpe_n[[v]]$`Vial ID`[z],1,4) == 'JORN'){
+          local_labels[[i,1]]<- paste0('USA, NEW MEXICO Dona Ana Co.    ','\n','Jornada Expm Rng. ',elv,'m ','\n','N',lat,' · W',long,
+                                       '     \n','Pitfall trap. ',f_date,'. AKaram.','\n',substr(chpe_n[[v]]$`Vial ID`[z],1,19))
+        }
+      }
+      ## moves on to check another site local (x)
+      x=x+1
+    }
+    
+    i=i+1
+    z=z+1
+  }
+  v=v+1
+}
+
+
+local_labels<- local_labels %>% 
+  arrange(BET_labels)
+
+```
+
+
+
+```{r pressure, echo=FALSE}
+
+size4<- paste0(size4,'em')
+
+## makes up to 250 labels
+local_labels[1:23] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[24:46] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[47:69] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[70:92] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[93:115] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[116:138] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[139:161] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[162:184] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[185:207] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[208:230] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+local_labels[231:250] %>%
+  kable("html") %>%
+  kable_paper(full_width = F, html_font = font, font_size = size, position = "float_left") %>%
+  column_spec(1, width = size4)
+
+```
